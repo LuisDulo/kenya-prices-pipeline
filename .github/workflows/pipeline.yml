@@ -1,0 +1,54 @@
+name: Daily pipeline
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # 07:00 in Nairobi
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: prices
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # A DATABASE_URL secret loads a hosted PostgreSQL. Without one, the run uses this job's
+      # own database, which is rebuilt from the sources each time.
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/prices' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run pipeline
+      - name: Commit curated data if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/curated
+          if git diff --cached --quiet; then
+            echo "No change in the data."
+          else
+            git commit -m "chore(data): Refresh curated data for $(TZ=Africa/Nairobi date +%F)"
+            git push
+          fi
