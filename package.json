@@ -1,0 +1,29 @@
+{
+  "name": "kenya-prices-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Daily pipeline for Kenyan pump prices (EPRA) and shilling exchange rates (CBK) into PostgreSQL and Power BI",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "pipeline": "tsx src/cli.ts run",
+    "migrate": "tsx src/cli.ts migrate",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "cheerio": "1.2.0",
+    "csv-parse": "7.0.3",
+    "csv-stringify": "6.9.0",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}
