@@ -2,7 +2,7 @@
 
 A daily data pipeline for Kenyan pump prices and inflation. It extracts official EPRA and Central Bank of Kenya data, cleans it, loads a PostgreSQL star schema, checks the result before publishing it, and commits curated CSV files that a Power BI dashboard reads.
 
-Written in TypeScript on Node.js, scheduled with GitHub Actions.
+Written in TypeScript on Node.js, tested in GitHub Actions and refreshed daily by a scheduled task.
 
 ```mermaid
 flowchart LR
@@ -81,7 +81,19 @@ Nothing is dropped silently. Every rejected row goes to `rejected_rows` with its
 
 ## Schedule
 
-`.github/workflows/pipeline.yml` runs at 07:00 Nairobi time. It builds the database from the sources, checks it, and commits the curated CSV files only when the data changed. Add a `DATABASE_URL` repository secret to load a hosted PostgreSQL as well.
+The refresh runs on a laptop, not in GitHub Actions. The first scheduled Actions run failed because EPRA answers `403 Forbidden` to GitHub's servers, while the same request from a home connection works. The pipeline respects that block rather than disguising its requests.
+
+A Windows scheduled task runs `scripts/refresh.ps1` at 07:00 Nairobi time. It pulls the latest code, runs the pipeline against a local PostgreSQL, and pushes the curated CSV files only when the data changed. If the laptop is asleep at 07:00, the task runs when it wakes. Each run writes `logs/refresh-YYYY-MM-DD.log`, and the last 30 logs are kept.
+
+Set it up once from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-laptop.ps1
+```
+
+It asks for your PostgreSQL password in a hidden prompt, creates the `kenya_prices` database, writes the connection string to `.env` (ignored by git and readable only by your Windows account), and registers the `KenyaPricesPipeline` task. Run it at any time with `Start-ScheduledTask -TaskName KenyaPricesPipeline`.
+
+GitHub Actions still runs the type check and every test on each pull request.
 
 ## Power BI
 
@@ -111,4 +123,4 @@ The integration tests reset the schema of the database they are given, so point 
 - **The exchange rates stop in January 2024**, so they cannot be compared with the pump prices, which start in November 2024.
 - **Prices are per notice, not per day.** EPRA publishes a price for a period, usually from the 15th to the 14th.
 - **EPRA's pages could change.** The parser checks the table's columns and fails loudly, but a redesign would need code changes.
-- **Without a `DATABASE_URL` secret, the scheduled run's database is temporary.** The curated CSV files are the lasting output, and the run history is kept only in that run's log.
+- **The data refreshes only while the laptop is on.** If it is off for days, the published CSV files go stale until it next runs. The freshness checks catch data that has gone stale at the source, not a laptop that was switched off.
